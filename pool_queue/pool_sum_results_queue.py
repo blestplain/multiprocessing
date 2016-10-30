@@ -18,9 +18,6 @@ import os
 N = 2
 task_que = Queue(5)
 results_que = Queue(5)
-global_lock = Lock()
-results_lock = Lock()
-
 
 class EndOfQueue(): # poison pill
     def __init__(self, pid):
@@ -49,16 +46,11 @@ def post_tasks():
 
 def process_task():
     while True:
-        with global_lock:
-            print 'PID {} aquired lock.'.format(os.getpid())
-            if not task_que.empty(): 
-                task = task_que.get()
-                if isinstance(task, EndOfQueue):
-                    print 'PID {} finishes processing'.format(os.getpid())
-                    results_que.put(EndOfQueue(os.getpid()))
-                    return 0
-            else:
-                continue
+        task = task_que.get(timeout=30) # block if queue is empty
+        if isinstance(task, EndOfQueue):
+            print 'PID {} finishes processing'.format(os.getpid())
+            results_que.put(EndOfQueue(os.getpid()))
+            return 0
         print 'PID {}: Processing task'.format(os.getpid())
         s = calculator(task[0], task[1])
         results_que.put(s)
@@ -68,14 +60,13 @@ def process_results():
     total = 0
     num_active_worker = N
     while num_active_worker > 0:
-        if not results_que.empty():
-            r = results_que.get(timeout=3)
-            if isinstance(r, EndOfQueue):
-                num_active_worker -= 1
-                print 'Number of active workers:', num_active_worker
-            else:
-                total += r 
-                print 'Current total:', total
+        r = results_que.get(timeout=30)
+        if isinstance(r, EndOfQueue):
+            num_active_worker -= 1
+            print 'Number of active workers:', num_active_worker
+        else:
+            total += r 
+            print 'Current total:', total
     print 'Total:', total
 
 def main():
