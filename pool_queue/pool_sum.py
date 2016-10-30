@@ -36,7 +36,9 @@ def process_task():
         if not task_que.empty(): 
             task = task_que.get()
             global_lock.release()
-        else:
+        else: 
+            # NOTE: There is a slight chance that no_more_task is set after posting last task in the queue while Queue.empty() returns True, ignoring the last posted task, due to delays between Queue.put() and Queue.empty().
+            
             print 'No more task?', no_more_task.is_set()
             if no_more_task.is_set():
                 print 'PID {} finishes processing'.format(os.getpid())

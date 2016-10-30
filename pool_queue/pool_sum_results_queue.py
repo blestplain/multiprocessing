@@ -18,7 +18,6 @@ import os
 N = 2
 task_que = Queue(5)
 results_que = Queue(5)
-no_more_task = Event()
 global_lock = Lock()
 results_lock = Lock()
 
@@ -45,7 +44,8 @@ def post_tasks():
             print 'Posted task..{}'.format(i)
         print 'Finished posting tasks..'
     finally:
-        no_more_task.set()
+        for i in range(N): # put N pills for N consumer workers
+            task_que.put(EndOfQueue(os.getpid()))
 
 def process_task():
     while True:
@@ -53,14 +53,12 @@ def process_task():
             print 'PID {} aquired lock.'.format(os.getpid())
             if not task_que.empty(): 
                 task = task_que.get()
-            else:
-                print 'No more task?', no_more_task.is_set()
-                if no_more_task.is_set():
+                if isinstance(task, EndOfQueue):
                     print 'PID {} finishes processing'.format(os.getpid())
                     results_que.put(EndOfQueue(os.getpid()))
                     return 0
-                else:
-                    continue
+            else:
+                continue
         print 'PID {}: Processing task'.format(os.getpid())
         s = calculator(task[0], task[1])
         results_que.put(s)
