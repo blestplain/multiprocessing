@@ -1,8 +1,11 @@
 '''
 multiprocessing for quick-sort 
 
-number of valid tasks is always the number of elements to be sorted.
-use poison pill to notify other processes that all tasks are done.
+Number of valid tasks is always the number of elements to be sorted.
+
+The first process reaches the number of total elements uses poison pill to notify other processes that all tasks are done.
+
+Task queue length needs to be suitable. One finished task will post two tasks to the queue.
 
 '''
 
@@ -12,13 +15,17 @@ from multiprocessing import Pool, JoinableQueue, Array, Value
 import random
 import traceback
 
-N = 2
-QUE_LEN = 5
+N = 4
+QUE_LEN = -1
 
-NUM_ELEMENTS = Value('i', 10)
-nums = Array('i', [random.randint(0, 100) for i in range(NUM_ELEMENTS.value)])
+NUM_ELEMENTS = 100
+nums = Array('i', [random.randint(0, 100) for i in range(NUM_ELEMENTS)])
 task_que = JoinableQueue(QUE_LEN)
 finished_tasks = Value('i', 0) 
+
+class EndOfQueue(): # poison pill
+    def __init__(self):
+        pass
 
 class QuickSortTask():
     def __init__(self, left, right):
@@ -56,13 +63,17 @@ class QuickSortTask():
 
 def process_que_task():
     while True:
-        if finished_tasks.value == NUM_ELEMENTS.value:
-            break
         task = task_que.get(timeout=10)
+        if isinstance(task, EndOfQueue):
+            break
         result = task.quick_sort_task()
         task_que.task_done()
         finished_tasks.value += 1
-        print 'Finished tasksi:', finished_tasks.value
+        print 'Finished tasks:', finished_tasks.value
+        if finished_tasks.value == NUM_ELEMENTS:
+            for i in range(N-1): # put N-1 poison pills for other processes
+                task_que.put(EndOfQueue())
+            break
     return 0        
                     
 def main():
