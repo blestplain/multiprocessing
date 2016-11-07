@@ -1,19 +1,24 @@
 '''
 multiprocessing for quick-sort 
 
+number of valid tasks is always the number of elements to be sorted.
+use poison pill to notify other processes that all tasks are done.
+
 '''
 
 import os
 import multiprocessing
-from multiprocessing import Pool, JoinableQueue, Array
+from multiprocessing import Pool, JoinableQueue, Array, Value
 import random
 import traceback
 
 N = 2
 QUE_LEN = 5
 
-nums = Array('i', [random.randint(0, 100) for i in range(10)])
+NUM_ELEMENTS = Value('i', 10)
+nums = Array('i', [random.randint(0, 100) for i in range(NUM_ELEMENTS.value)])
 task_que = JoinableQueue(QUE_LEN)
+finished_tasks = Value('i', 0) 
 
 class QuickSortTask():
     def __init__(self, left, right):
@@ -23,7 +28,6 @@ class QuickSortTask():
     def quick_sort_task(self):
         print 'PID {}: Quick sorting:'.format(os.getpid()), self.left, self.right
         if self.left >= self.right:
-            task_que.task_done()
             return 1
         
         l = self.left + 1
@@ -48,13 +52,17 @@ class QuickSortTask():
         if l <= self.right:
             task_que.put(QuickSortTask(l, self.right))
             print 'PID {}: put task'.format(os.getpid()), l, self.right
-        task_que.task_done()
         return 0
 
 def process_que_task():
-    while True: # how to quit?
-       task = task_que.get(timeout=10)
-       result = task.quick_sort_task()
+    while True:
+        if finished_tasks.value == NUM_ELEMENTS.value:
+            break
+        task = task_que.get(timeout=10)
+        result = task.quick_sort_task()
+        task_que.task_done()
+        finished_tasks.value += 1
+        print 'Finished tasksi:', finished_tasks.value
     return 0        
                     
 def main():
@@ -66,7 +74,9 @@ def main():
     rets = []
     for i in range(N):
         rets.append(pool.apply_async(process_que_task))    
-    task_que.join()
+    for r in rets:
+        r.get()
+
     print 'Sorted nums:', [n for n in nums]
 
 if __name__ == '__main__':
